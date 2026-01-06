@@ -281,121 +281,48 @@ def generate_nlq_insights(query_data, df):
     return insights
 
 def generate_nlq_stories(query_data, df, insights):
-    """Generate 3-4 story branches for NLQ response."""
+    """Generate 3-4 story branches with personalized narratives and dynamic metrics."""
     intent = query_data['intent']
     query = query_data['query']
+    key_terms = ' '.join(query_data['key_terms'])
+    
+    # Calculate dynamic metrics from data
+    if df is not None and 'Revenue' in df.columns:
+        current_revenue = df['Revenue'].iloc[-1]
+        avg_revenue = df['Revenue'].mean()
+    else:
+        current_revenue = 5000
+        avg_revenue = 5000
     
     stories = []
     
     if intent == 'sales_issue':
         stories = [
-            {
-                'title': 'Path 1: Status Quo',
-                'description': 'Continue current approach without changes. Revenue continues declining.',
-                'outcome': 'Revenue drops 15-20% next quarter',
-                'growth': -15,
-                'risk': 85
-            },
-            {
-                'title': 'Path 2: Quick Fixes',
-                'description': 'Implement targeted promotions in underperforming regions.',
-                'outcome': 'Revenue stabilizes with +5% growth',
-                'growth': 5,
-                'risk': 45
-            },
-            {
-                'title': 'Path 3: Strategic Pivot',
-                'description': 'Reallocate resources to high-performing regions and expand there.',
-                'outcome': 'Revenue grows 12-15% with focused effort',
-                'growth': 12,
-                'risk': 35
-            },
-            {
-                'title': 'Path 4: Holistic Transformation',
-                'description': 'Investigate root causes, fix operations, and scale across all regions.',
-                'outcome': 'Revenue grows 20%+ with sustainable growth',
-                'growth': 20,
-                'risk': 55
-            }
+            {'title': 'Path 1: Status Quo (Risky)', 'description': f'Continue without action on {key_terms}. Revenue declines.', 'outcome': f'Revenue drops 15-20% (${current_revenue * 0.8:.0f})', 'growth': -15, 'risk': 85, 'recommendation': 'Not recommended'},
+            {'title': 'Path 2: Quick Fixes (Safe)', 'description': f'Targeted interventions for {key_terms}. Quick wins.', 'outcome': f'Revenue +5% (${current_revenue * 1.05:.0f})', 'growth': 5, 'risk': 45, 'recommendation': 'Good for stabilization'},
+            {'title': 'Path 3: Strategic Pivot (Balanced)', 'description': f'Reallocate resources for {key_terms}. Focused growth.', 'outcome': f'Revenue +12-15% (${current_revenue * 1.13:.0f})', 'growth': 12, 'risk': 35, 'recommendation': 'Recommended - balanced'},
+            {'title': 'Path 4: Transformation (Bold)', 'description': f'Deep fix for {key_terms}. Comprehensive approach.', 'outcome': f'Revenue +20%+ (${current_revenue * 1.20:.0f})', 'growth': 20, 'risk': 55, 'recommendation': 'Best long-term'}
         ]
-    
     elif intent == 'forecast':
         stories = [
-            {
-                'title': 'Path 1: Conservative Growth',
-                'description': 'Maintain current pace without aggressive scaling.',
-                'outcome': 'Steady 8-10% growth',
-                'growth': 8,
-                'risk': 20
-            },
-            {
-                'title': 'Path 2: Aggressive Expansion',
-                'description': 'Double marketing spend and hire more sales team.',
-                'outcome': 'Revenue grows 25-30% with higher risk',
-                'growth': 25,
-                'risk': 60
-            },
-            {
-                'title': 'Path 3: Balanced Scaling',
-                'description': 'Increase investment 50% while maintaining quality.',
-                'outcome': 'Revenue grows 15-18% sustainably',
-                'growth': 15,
-                'risk': 40
-            }
+            {'title': 'Path 1: Conservative', 'description': f'Steady pace for {key_terms}.', 'outcome': f'+8-10% growth (${current_revenue * 1.09:.0f})', 'growth': 8, 'risk': 20, 'recommendation': 'Safe choice'},
+            {'title': 'Path 2: Aggressive', 'description': f'Double investment in {key_terms}.', 'outcome': f'+25-30% growth (${current_revenue * 1.27:.0f})', 'growth': 25, 'risk': 60, 'recommendation': 'For risk-takers'},
+            {'title': 'Path 3: Balanced', 'description': f'50% increase in {key_terms}.', 'outcome': f'+15-18% growth (${current_revenue * 1.16:.0f})', 'growth': 15, 'risk': 40, 'recommendation': 'Recommended'}
         ]
-    
     elif intent == 'bias_check':
         stories = [
-            {
-                'title': 'Path 1: Ignore Bias',
-                'description': 'Continue focusing on current strategy despite data.',
-                'outcome': 'Miss 10-15% revenue opportunity',
-                'growth': -10,
-                'risk': 80
-            },
-            {
-                'title': 'Path 2: Diversify Strategy',
-                'description': 'Allocate resources to underperforming regions.',
-                'outcome': 'Unlock 12-18% additional revenue',
-                'growth': 15,
-                'risk': 45
-            },
-            {
-                'title': 'Path 3: Balanced Approach',
-                'description': 'Maintain strength in current markets while testing new regions.',
-                'outcome': 'Steady growth of 8-12%',
-                'growth': 10,
-                'risk': 35
-            }
+            {'title': 'Path 1: Ignore Bias', 'description': f'Continue ignoring {key_terms} signals.', 'outcome': f'Miss 10-15% opportunity', 'growth': -10, 'risk': 80, 'recommendation': 'Not recommended'},
+            {'title': 'Path 2: Diversify', 'description': f'Pivot to address {key_terms}.', 'outcome': f'Unlock +12-18% revenue', 'growth': 15, 'risk': 45, 'recommendation': 'Bold move'},
+            {'title': 'Path 3: Balanced', 'description': f'Test {key_terms} while maintaining strength.', 'outcome': f'Steady +8-12% growth', 'growth': 10, 'risk': 35, 'recommendation': 'Recommended'}
         ]
-    
     else:
         stories = [
-            {
-                'title': 'Path 1: Maintain Status',
-                'description': 'Keep current operations running.',
-                'outcome': 'Stable revenue',
-                'growth': 0,
-                'risk': 25
-            },
-            {
-                'title': 'Path 2: Optimize',
-                'description': 'Fine-tune operations for efficiency.',
-                'outcome': 'Revenue grows 5-8%',
-                'growth': 6,
-                'risk': 30
-            },
-            {
-                'title': 'Path 3: Innovate',
-                'description': 'Introduce new products or services.',
-                'outcome': 'Revenue grows 10-15%',
-                'growth': 12,
-                'risk': 50
-            }
+            {'title': 'Path 1: Maintain', 'description': f'Keep {key_terms} operations.', 'outcome': f'Stable revenue', 'growth': 0, 'risk': 25, 'recommendation': 'Maintains position'},
+            {'title': 'Path 2: Optimize', 'description': f'Improve {key_terms} efficiency.', 'outcome': f'+5-8% growth', 'growth': 6, 'risk': 30, 'recommendation': 'Low-risk'},
+            {'title': 'Path 3: Innovate', 'description': f'New approach to {key_terms}.', 'outcome': f'+10-15% growth', 'growth': 12, 'risk': 50, 'recommendation': 'Higher upside'}
         ]
     
     return stories
-
 def calculate_nlq_score(query_data, insights):
     """Calculate Nexus Advice Score for NLQ response."""
     intent = query_data['intent']
@@ -800,6 +727,47 @@ def show_welcome_tour():
         if st.button("✅ Got it! Let's go", use_container_width=True):
             st.session_state.first_time_user = False
             st.rerun()
+
+
+
+# ==================== METRICS & TRACKING (DAY 3) ====================
+
+def calculate_path_accuracy(story, df):
+    """Calculate mock accuracy score for a path based on data volatility."""
+    if df is None or 'Revenue' in df.columns:
+        volatility = df['Revenue'].std() / df['Revenue'].mean() if df['Revenue'].mean() > 0 else 0.1
+    else:
+        volatility = 0.15
+    
+    # Lower volatility = higher accuracy
+    base_accuracy = max(60, 95 - (volatility * 100))
+    
+    # Adjust based on risk
+    risk_factor = story['risk'] / 100
+    accuracy = base_accuracy * (1 - risk_factor * 0.3)
+    
+    return min(max(accuracy, 50), 95)
+
+def get_testimonials():
+    """Get sample testimonials from SMEs."""
+    testimonials = [
+        {"name": "Chioma, Cafe Owner", "text": "Narrative Nexus helped me see I was ignoring rural customers. Pivoted strategy, +18% revenue!", "rating": 5},
+        {"name": "Tunde, E-commerce Manager", "text": "The bias detection was eye-opening. We were too focused on one segment. Now we're balanced.", "rating": 5},
+        {"name": "Zainab, Fashion Retailer", "text": "Loved the story branches. Made it easy to see different outcomes before deciding.", "rating": 4},
+        {"name": "Segun, Tech Startup", "text": "Game-changer for decision-making. No more guessing, just data-driven stories.", "rating": 5},
+    ]
+    return testimonials
+
+def track_metric(metric_name, value):
+    """Track a metric for analytics."""
+    if 'metrics_log' not in st.session_state:
+        st.session_state.metrics_log = []
+    
+    st.session_state.metrics_log.append({
+        'metric': metric_name,
+        'value': value,
+        'timestamp': datetime.now()
+    })
 
 
 # ==================== MAIN APP ====================
