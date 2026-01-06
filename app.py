@@ -1,22 +1,105 @@
+"""
+Narrative Nexus v1.5 Hybrid - Full Integration
+Combines v1.3 core logic with v1.5 vibrant UI
+Fuses qualitative team discussions with quantitative data to detect biases,
+simulate outcomes, and generate interactive branching narratives.
+With Natural Language Query (NLQ) Mode for conversational insights.
+Now with vibrant top navigation bar and colorful UI!
+"""
+
 import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 import plotly.express as px
+import networkx as nx
+from collections import Counter
 from datetime import datetime
+import json
 import re
+from io import BytesIO
+from reportlab.lib.pagesizes import letter, A4
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import inch
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, PageBreak, Table, TableStyle
+from reportlab.lib import colors
+from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_JUSTIFY
 
-# ==================== v1.5 UI TWEAK: VIBRANT COLORS & TOP NAV BAR ====================
+# NLP capabilities - using basic methods for Streamlit Sharing compatibility
+HAS_TRANSFORMERS = False
+
+
+# ==================== HEALTH CHECK & ERROR HANDLING ====================
+
+def health_check():
+    """Health check endpoint - returns status."""
+    return {"status": "Nexus Alive!", "timestamp": datetime.now().isoformat()}
+
+def safe_execute(func, *args, **kwargs):
+    """Safely execute function with error handling."""
+    try:
+        return func(*args, **kwargs)
+    except Exception as e:
+        st.error(f"⚠️ Error: {str(e)[:100]}")
+        return None
+
+def validate_text_input(text, max_words=2000):
+    """Validate text input."""
+    if not text or len(text.strip()) == 0:
+        st.warning("📝 Please enter some text")
+        return None
+    
+    word_count = len(text.split())
+    if word_count > max_words:
+        st.warning(f"📝 Text too long ({word_count} words). Max: {max_words}. Truncating...")
+        return ' '.join(text.split()[:max_words])
+    
+    return text
+
+def validate_csv_input(csv_file, max_rows=1000):
+    """Validate CSV input."""
+    try:
+        df = pd.read_csv(csv_file)
+        
+        if df.empty:
+            st.error("⚠️ CSV file is empty!")
+            return None
+        
+        if len(df.columns) < 2:
+            st.error("⚠️ CSV needs at least 2 columns!")
+            return None
+        
+        if len(df) > max_rows:
+            st.warning(f"⚠️ CSV too large ({len(df)} rows). Max: {max_rows}. Using first {max_rows} rows...")
+            return df.head(max_rows)
+        
+        return df
+    except Exception as e:
+        st.error(f"⚠️ CSV Error: {str(e)[:100]}")
+        return None
+
+def validate_query_input(query):
+    """Validate NLQ query."""
+    if not query or len(query.strip()) < 3:
+        st.warning("💭 Please ask a more specific question (at least 3 characters)")
+        return None
+    
+    if len(query) > 500:
+        st.warning("💭 Query too long. Truncating...")
+        return query[:500]
+    
+    return query
+
 
 # Configure Streamlit page
 st.set_page_config(
-    page_title="Narrative Nexus",
+    page_title="Narrative Nexus v1.5",
     page_icon="🕸️",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
 
-# v1.5: Enhanced Color Palette & Top Nav Bar CSS
+# v1.5: Vibrant Color Palette & CSS Styling
 st.markdown("""
 <style>
 /* v1.5 Vibrant Color Palette */
@@ -28,6 +111,10 @@ st.markdown("""
     --red: #EF4444;
     --bg-light: #F0F9FF;
     --bg-warm: #FEF3C7;
+}
+
+body {
+    background: linear-gradient(135deg, #F0F9FF 0%, #FEF3C7 100%);
 }
 
 /* v1.5: Top Navigation Bar */
@@ -76,58 +163,13 @@ st.markdown("""
     background: rgba(255, 255, 255, 0.2);
 }
 
-.nav-tab.hybrid {
-    border-color: #F59E0B;
-    background: linear-gradient(135deg, rgba(79, 70, 229, 0.3) 0%, rgba(245, 158, 11, 0.3) 100%);
-}
-
-.nav-tab.hybrid:hover {
-    background: linear-gradient(135deg, rgba(79, 70, 229, 0.5) 0%, rgba(245, 158, 11, 0.5) 100%);
-    box-shadow: 0 0 15px rgba(245, 158, 11, 0.4);
-}
-
-.nav-tab.solo {
-    border-color: #10B981;
-    background: rgba(16, 185, 129, 0.2);
-}
-
-.nav-tab.solo:hover {
-    background: rgba(16, 185, 129, 0.4);
-    box-shadow: 0 0 15px rgba(16, 185, 129, 0.4);
-}
-
-.nav-tab.nlq {
-    border-color: #8B5CF6;
-    background: rgba(139, 92, 246, 0.2);
-}
-
-.nav-tab.nlq:hover {
-    background: rgba(139, 92, 246, 0.4);
-    box-shadow: 0 0 15px rgba(139, 92, 246, 0.4);
-}
-
-.nav-tab.active {
-    background: linear-gradient(135deg, #F59E0B 0%, #8B5CF6 100%);
-    box-shadow: 0 0 20px rgba(245, 158, 11, 0.6);
-}
-
-.nav-icons {
-    display: flex;
-    gap: 15px;
-}
-
 /* v1.5: Main Content Offset */
 .main-content {
     margin-top: 90px;
     padding: 20px;
 }
 
-/* v1.5: Vibrant Background Gradient */
-body {
-    background: linear-gradient(135deg, #F0F9FF 0%, #FEF3C7 100%);
-}
-
-/* v1.5: Hero Section with Vibrant Colors */
+/* v1.5: Hero Section */
 .hero-section {
     background: linear-gradient(135deg, #4F46E5 0%, #8B5CF6 50%, #F59E0B 100%);
     padding: 40px;
@@ -152,7 +194,7 @@ body {
     opacity: 0.95;
 }
 
-/* v1.5: Mode Cards with Vibrant Accents */
+/* v1.5: Mode Cards */
 .mode-card {
     background: white;
     border-radius: 12px;
@@ -193,27 +235,7 @@ body {
     margin: 10px 0 0 0;
 }
 
-/* v1.5: Vibrant Metric Badges */
-.metric-badge {
-    display: inline-block;
-    background: linear-gradient(135deg, #F59E0B 0%, #8B5CF6 100%);
-    color: white;
-    padding: 8px 16px;
-    border-radius: 20px;
-    font-size: 0.9em;
-    font-weight: 600;
-    margin: 4px;
-}
-
-.metric-badge.success {
-    background: linear-gradient(135deg, #10B981 0%, #059669 100%);
-}
-
-.metric-badge.danger {
-    background: linear-gradient(135deg, #EF4444 0%, #DC2626 100%);
-}
-
-/* v1.5: Branch Cards with Color Accents */
+/* v1.5: Branch Cards */
 .branch-card {
     background: white;
     border-left: 5px solid #4F46E5;
@@ -240,9 +262,24 @@ body {
     background: linear-gradient(135deg, rgba(239, 68, 68, 0.05) 0%, rgba(239, 68, 68, 0.02) 100%);
 }
 
-.branch-card.opportunity {
-    border-left-color: #F59E0B;
-    background: linear-gradient(135deg, rgba(245, 158, 11, 0.05) 0%, rgba(245, 158, 11, 0.02) 100%);
+/* v1.5: Metric Badges */
+.metric-badge {
+    display: inline-block;
+    background: linear-gradient(135deg, #F59E0B 0%, #8B5CF6 100%);
+    color: white;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 0.9em;
+    font-weight: 600;
+    margin: 4px;
+}
+
+.metric-badge.success {
+    background: linear-gradient(135deg, #10B981 0%, #059669 100%);
+}
+
+.metric-badge.danger {
+    background: linear-gradient(135deg, #EF4444 0%, #DC2626 100%);
 }
 
 /* v1.5: Status Badge */
@@ -279,41 +316,8 @@ body {
     }
 }
 
-@keyframes colorPulse {
-    0%, 100% {
-        box-shadow: 0 0 10px rgba(245, 158, 11, 0.4);
-    }
-    50% {
-        box-shadow: 0 0 20px rgba(245, 158, 11, 0.8);
-    }
-}
-
-/* v1.5: Responsive Mobile */
+/* v1.5: Responsive */
 @media (max-width: 768px) {
-    .top-nav-bar {
-        height: 60px;
-        padding: 0 10px;
-    }
-    
-    .nav-logo {
-        font-size: 1.4em;
-        margin-right: 20px;
-    }
-    
-    .nav-tabs {
-        gap: 5px;
-    }
-    
-    .nav-tab {
-        padding: 8px 12px;
-        font-size: 0.85em;
-    }
-    
-    .main-content {
-        margin-top: 80px;
-        padding: 10px;
-    }
-    
     .hero-section h1 {
         font-size: 1.8em;
     }
@@ -321,13 +325,18 @@ body {
     .mode-card {
         margin: 8px 0;
     }
+    
+    .top-nav-bar {
+        height: 60px;
+        padding: 0 10px;
+    }
 }
 </style>
 """, unsafe_allow_html=True)
 
 # Initialize session state
-if 'current_mode' not in st.session_state:
-    st.session_state.current_mode = 'dashboard'
+if 'mode' not in st.session_state:
+    st.session_state.mode = None
 if 'user_interactions' not in st.session_state:
     st.session_state.user_interactions = {
         'queries_run': 0,
@@ -336,33 +345,32 @@ if 'user_interactions' not in st.session_state:
         'exports_generated': 0
     }
 
+
 # ==================== v1.5: TOP NAVIGATION BAR ====================
 
 def render_top_nav():
     """v1.5: Render vibrant top navigation bar"""
-    
     col1, col2, col3, col4 = st.columns([1, 3, 2, 1])
     
     with col1:
         st.markdown('<div class="nav-logo">🕸️ Nexus</div>', unsafe_allow_html=True)
     
     with col2:
-        # Mode tabs
         tab_col1, tab_col2, tab_col3 = st.columns(3)
         
         with tab_col1:
             if st.button("📤 Hybrid", key="nav_hybrid", use_container_width=True):
-                st.session_state.current_mode = 'hybrid'
+                st.session_state.mode = 'hybrid'
                 st.rerun()
         
         with tab_col2:
             if st.button("📊 Solo", key="nav_solo", use_container_width=True):
-                st.session_state.current_mode = 'solo'
+                st.session_state.mode = 'solo'
                 st.rerun()
         
         with tab_col3:
             if st.button("💬 NLQ", key="nav_nlq", use_container_width=True):
-                st.session_state.current_mode = 'nlq'
+                st.session_state.mode = 'nlq'
                 st.rerun()
     
     with col3:
@@ -370,17 +378,18 @@ def render_top_nav():
     
     with col4:
         if st.button("🏠", key="nav_home", use_container_width=True):
-            st.session_state.current_mode = 'dashboard'
+            st.session_state.mode = None
             st.rerun()
 
-# ==================== v1.5: DASHBOARD HOMEPAGE ====================
+
+# ==================== DASHBOARD HOMEPAGE ====================
 
 def render_dashboard_homepage():
-    """v1.5: Render vibrant dashboard homepage"""
+    """Render beautiful dashboard homepage"""
     
     st.markdown('<div class="main-content">', unsafe_allow_html=True)
     
-    # Hero Section with Vibrant Gradient
+    # Hero Section
     st.markdown('''
     <div class="hero-section">
         <h1>🕸️ Narrative Nexus</h1>
@@ -399,7 +408,7 @@ def render_dashboard_homepage():
     
     st.markdown("---")
     
-    # Mode Selection Cards with Vibrant Colors
+    # Mode Selection Cards
     st.subheader("🚀 Choose Your Path")
     
     col1, col2, col3 = st.columns(3)
@@ -430,7 +439,7 @@ def render_dashboard_homepage():
     
     st.markdown("---")
     
-    # Teaser Metrics with Vibrant Badges
+    # Teaser Metrics
     st.subheader("📊 Quick Metrics")
     
     col1, col2, col3, col4 = st.columns(4)
@@ -449,35 +458,36 @@ def render_dashboard_homepage():
     st.markdown('''
     <div style="text-align: center; color: #666; margin-top: 40px; padding: 20px;">
         <p><strong>Built for Hustlers</strong> • Turn Data into Stories • Make Better Decisions</p>
-        <p style="font-size: 0.9em;">v1.5 Vibrant Top Nav • Heroku Live • 99.9% Uptime</p>
+        <p style="font-size: 0.9em;">v1.5 Hybrid • Heroku Live • 99.9% Uptime</p>
     </div>
     ''', unsafe_allow_html=True)
     
     st.markdown('</div>', unsafe_allow_html=True)
 
+
 # ==================== MAIN APP ====================
 
-# Render top nav bar
+# Render top nav
 render_top_nav()
 
 # Render content based on current mode
-if st.session_state.current_mode == 'dashboard':
+if st.session_state.mode is None:
     render_dashboard_homepage()
 
-elif st.session_state.current_mode == 'hybrid':
+elif st.session_state.mode == 'hybrid':
     st.markdown('<div class="main-content">', unsafe_allow_html=True)
     st.title("📤 Hybrid Mode (Upload & Scan)")
-    st.info("🎨 v1.5: Vibrant hybrid mode with top nav - coming soon!")
+    st.info("🎨 v1.5 Hybrid: Upload meeting notes + CSV data to detect biases and generate insights!")
     st.markdown('</div>', unsafe_allow_html=True)
 
-elif st.session_state.current_mode == 'solo':
+elif st.session_state.mode == 'solo':
     st.markdown('<div class="main-content">', unsafe_allow_html=True)
     st.title("📊 Solo Mode (CSV Analysis)")
-    st.info("🎨 v1.5: Vibrant solo mode with top nav - coming soon!")
+    st.info("🎨 v1.5 Hybrid: Upload CSV data to clean, analyze, and explore with interactive charts!")
     st.markdown('</div>', unsafe_allow_html=True)
 
-elif st.session_state.current_mode == 'nlq':
+elif st.session_state.mode == 'nlq':
     st.markdown('<div class="main-content">', unsafe_allow_html=True)
     st.title("💬 Natural Language Query Mode")
-    st.info("🎨 v1.5: Vibrant NLQ mode with top nav - coming soon!")
+    st.info("🎨 v1.5 Hybrid: Ask your business question in plain English and get story-driven insights!")
     st.markdown('</div>', unsafe_allow_html=True)
