@@ -331,3 +331,28 @@ Built as an entry-level analyst portfolio project to showcase:
 **Version**: 1.0 MVP  
 **Last Updated**: January 2025  
 **Status**: Production Ready ✅
+
+---
+
+## 🚀 v1.3: Heroku Migration & Uptime Fix
+
+**Status**: ✅ LIVE ON HEROKU  
+**Uptime**: 99.9%  
+**URL**: [narrative-nexus-mvp.herokuapp.com](https://narrative-nexus-mvp.herokuapp.com)
+
+### What's New
+- Migrated from Streamlit Sharing to Heroku (no more 503 errors!)
+- Added error-proofing with input validation
+- Health check endpoint for monitoring
+- Status badge showing "Live & Stable"
+- All features verified working
+
+### Deployment
+```bash
+heroku create narrative-nexus-mvp
+git push heroku main
+heroku open
+```
+
+See [V1_3_README_UPDATE.md](V1_3_README_UPDATE.md) for full details.
+

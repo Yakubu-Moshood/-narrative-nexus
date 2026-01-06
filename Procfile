@@ -1,1 +1,1 @@
-web: streamlit run app.py --logger.level=error --client.toolbarMode=viewer
+web: streamlit run app.py --server.port=$PORT --server.address=0.0.0.0

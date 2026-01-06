@@ -26,6 +26,69 @@ from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_JUSTIFY
 # NLP capabilities - using basic methods for Streamlit Sharing compatibility
 HAS_TRANSFORMERS = False
 
+
+# ==================== HEALTH CHECK & ERROR HANDLING ====================
+
+def health_check():
+    """Health check endpoint - returns status."""
+    return {"status": "Nexus Alive!", "timestamp": datetime.now().isoformat()}
+
+def safe_execute(func, *args, **kwargs):
+    """Safely execute function with error handling."""
+    try:
+        return func(*args, **kwargs)
+    except Exception as e:
+        st.error(f"⚠️ Error: {str(e)[:100]}")
+        return None
+
+def validate_text_input(text, max_words=2000):
+    """Validate text input."""
+    if not text or len(text.strip()) == 0:
+        st.warning("📝 Please enter some text")
+        return None
+    
+    word_count = len(text.split())
+    if word_count > max_words:
+        st.warning(f"📝 Text too long ({word_count} words). Max: {max_words}. Truncating...")
+        return ' '.join(text.split()[:max_words])
+    
+    return text
+
+def validate_csv_input(csv_file, max_rows=1000):
+    """Validate CSV input."""
+    try:
+        df = pd.read_csv(csv_file)
+        
+        if df.empty:
+            st.error("⚠️ CSV file is empty!")
+            return None
+        
+        if len(df.columns) < 2:
+            st.error("⚠️ CSV needs at least 2 columns!")
+            return None
+        
+        if len(df) > max_rows:
+            st.warning(f"⚠️ CSV too large ({len(df)} rows). Max: {max_rows}. Using first {max_rows} rows...")
+            return df.head(max_rows)
+        
+        return df
+    except Exception as e:
+        st.error(f"⚠️ CSV Error: {str(e)[:100]}")
+        return None
+
+def validate_query_input(query):
+    """Validate NLQ query."""
+    if not query or len(query.strip()) < 3:
+        st.warning("💭 Please ask a more specific question (at least 3 characters)")
+        return None
+    
+    if len(query) > 500:
+        st.warning("💭 Query too long. Truncating...")
+        return query[:500]
+    
+    return query
+
+
 # Configure Streamlit page
 st.set_page_config(
     page_title="Narrative Nexus v1.2+ Day 1",
@@ -345,16 +408,7 @@ def calculate_nlq_score(query_data, insights):
 
 def validate_and_preview_text(text_content):
     """Validate and preview text file."""
-    if not text_content or len(text_content.strip()) == 0:
-        st.error("⚠️ Text file is empty!")
-        return None
-    
-    word_count = len(text_content.split())
-    if word_count > 10000:
-        st.warning(f"📝 Text is long ({word_count} words). Truncating to 1000 words for analysis.")
-        text_content = ' '.join(text_content.split()[:1000])
-    
-    return text_content
+    return validate_text_input(text_content, max_words=2000)
 
 def validate_and_preview_csv(csv_data):
     """Validate and preview CSV file."""
