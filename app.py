@@ -28,7 +28,7 @@ HAS_TRANSFORMERS = False
 
 # Configure Streamlit page
 st.set_page_config(
-    page_title="Narrative Nexus v1.2",
+    page_title="Narrative Nexus v1.2+ Day 1",
     page_icon="🕸️",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -81,6 +81,31 @@ st.markdown("""
         border-radius: 12px;
         margin: 8px 0;
         border-left: 4px solid #4caf50;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+    
+    .tooltip-text {
+        color: #666;
+        font-size: 0.85rem;
+        font-style: italic;
+        margin-top: 4px;
+    }
+    
+    .welcome-box {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 20px;
+        border-radius: 10px;
+        margin-bottom: 20px;
+    }
+    
+    @media (max-width: 768px) {
+        .main {
+            padding: 10px;
+        }
+        .query-bubble {
+            max-width: 90%;
+        }
     }
     </style>
 """, unsafe_allow_html=True)
@@ -104,6 +129,15 @@ def initialize_session_state():
             st.session_state.nlq_mode = False
         if 'nlq_history' not in st.session_state:
             st.session_state.nlq_history = []
+        if 'first_time_user' not in st.session_state:
+            st.session_state.first_time_user = True
+        if 'user_interactions' not in st.session_state:
+            st.session_state.user_interactions = {
+                'queries_run': 0,
+                'files_uploaded': 0,
+                'branches_clicked': 0,
+                'exports_generated': 0
+            }
     except (AttributeError, RuntimeError):
         # Running in test mode or without streamlit context
         pass
@@ -539,13 +573,14 @@ def run_monte_carlo_simulation(df, bias_flip=False, n_runs=100):
 # ==================== UI SECTIONS ====================
 
 def display_nlq_mode():
-    """Display NLQ Mode interface."""
+    """Display NLQ Mode interface with Day 1 enhancements."""
     st.header("💬 Natural Language Query Mode")
     
     col1, col2 = st.columns([3, 1])
     
     with col1:
         st.markdown("**Ask your business question in plain English**")
+        st.markdown('<p class="tooltip-text">💡 Tip: Be specific! E.g., "Sales dropping in rural areas" vs. "Why is business bad?"</p>', unsafe_allow_html=True)
         query = st.text_area(
             "What's your business challenge?",
             placeholder="E.g., 'Sales dropping in rural areas—how can I fix it?' or 'Team focused on premium but budget growing faster'",
@@ -741,10 +776,41 @@ def display_export_section():
     st.subheader("💬 Share Feedback")
     st.markdown("Help us improve! [📝 Feedback Form](https://forms.gle/narrative-nexus-feedback)")
 
+
+# ==================== WELCOME TOUR (NEW - DAY 1) ====================
+
+def show_welcome_tour():
+    """Show welcome tour for first-time users."""
+    if st.session_state.first_time_user:
+        st.markdown("""
+            <div class="welcome-box">
+                <h2>🎉 Welcome to Narrative Nexus!</h2>
+                <p><strong>Your AI bias-buster for smarter decisions</strong></p>
+                <p>💡 <strong>First time here?</strong> Try these quick steps:</p>
+                <ol>
+                    <li>📝 <strong>Chat Mode:</strong> Select "💬 Natural Language Query" and ask a business question</li>
+                    <li>📊 <strong>Upload Mode:</strong> Upload meeting notes + CSV to detect biases</li>
+                    <li>📖 <strong>Explore:</strong> Check out 3-4 story branches with different outcomes</li>
+                    <li>💾 <strong>Export:</strong> Download your analysis as PDF</li>
+                </ol>
+                <p>✨ <strong>Pro tip:</strong> Try asking "Sales dropping in rural areas—how can I fix it?"</p>
+            </div>
+        """, unsafe_allow_html=True)
+        
+        if st.button("✅ Got it! Let's go", use_container_width=True):
+            st.session_state.first_time_user = False
+            st.rerun()
+
+
 # ==================== MAIN APP ====================
 
 def main():
-    """Main app layout."""
+    """Main app layout with Day 1 enhancements."""
+    
+    # Show welcome tour for first-time users
+    if st.session_state.first_time_user:
+        show_welcome_tour()
+        return
     
     # Header
     st.markdown("""
