@@ -22,12 +22,8 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, Page
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_JUSTIFY
 
-# Try to import transformers for NLP, fallback to basic NLP if unavailable
-try:
-    from transformers import pipeline
-    HAS_TRANSFORMERS = True
-except ImportError:
-    HAS_TRANSFORMERS = False
+# NLP capabilities - using basic methods for Streamlit Sharing compatibility
+HAS_TRANSFORMERS = False
 
 # Configure Streamlit page
 st.set_page_config(
@@ -240,22 +236,8 @@ def analyze_sentiment_basic(text):
     return sentiment_score
 
 def analyze_sentiment_transformers(text):
-    """Sentiment analysis using Hugging Face transformers."""
-    try:
-        classifier = pipeline("sentiment-analysis", model="distilbert-base-uncased-finetuned-sst-2-english")
-        result = classifier(text[:512])  # Limit to 512 tokens
-        
-        score = result[0]['score']
-        label = result[0]['label']
-        
-        # Convert to 0-100 scale
-        if label == 'POSITIVE':
-            return score * 100
-        else:
-            return (1 - score) * 100
-    except Exception as e:
-        st.warning(f"Sentiment analysis fallback: {str(e)}")
-        return analyze_sentiment_basic(text)
+    """Sentiment analysis - using basic method for compatibility."""
+    return analyze_sentiment_basic(text)
 
 def calculate_mismatch_score(text, df):
     """Calculate nexus mismatch score between text and data."""
@@ -421,10 +403,7 @@ def display_scan_section():
         echoes = detect_echo_chambers(text)
         
         # Sentiment analysis
-        if HAS_TRANSFORMERS:
-            sentiment = analyze_sentiment_transformers(text)
-        else:
-            sentiment = analyze_sentiment_basic(text)
+        sentiment = analyze_sentiment_basic(text)
         
         # Mismatch score
         mismatch = calculate_mismatch_score(text, df)
