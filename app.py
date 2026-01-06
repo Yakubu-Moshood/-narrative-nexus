@@ -99,79 +99,312 @@ st.set_page_config(
 
 # Custom CSS for styling
 st.markdown("""
-    <style>
-    .main {
-        background-color: #f8f9fa;
+<style>
+/* v1.5 Vibrant Color Palette */
+:root {
+    --primary: #4F46E5;
+    --orange: #F59E0B;
+    --purple: #8B5CF6;
+    --green: #10B981;
+    --red: #EF4444;
+    --bg-light: #F0F9FF;
+    --bg-warm: #FEF3C7;
+}
+
+/* v1.5: Top Navigation Bar */
+.top-nav-bar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 70px;
+    background: linear-gradient(90deg, #2D3748 0%, #1A202C 100%);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    z-index: 999;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+}
+
+.nav-logo {
+    font-size: 1.8em;
+    font-weight: 700;
+    color: white;
+    margin-right: 40px;
+}
+
+.nav-tabs {
+    display: flex;
+    gap: 10px;
+    flex: 1;
+    justify-content: center;
+}
+
+.nav-tab {
+    padding: 10px 20px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: all 0.3s ease;
+    border: 2px solid transparent;
+    color: white;
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.nav-tab:hover {
+    transform: scale(1.05);
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.nav-tab.hybrid {
+    border-color: #F59E0B;
+    background: linear-gradient(135deg, rgba(79, 70, 229, 0.3) 0%, rgba(245, 158, 11, 0.3) 100%);
+}
+
+.nav-tab.hybrid:hover {
+    background: linear-gradient(135deg, rgba(79, 70, 229, 0.5) 0%, rgba(245, 158, 11, 0.5) 100%);
+    box-shadow: 0 0 15px rgba(245, 158, 11, 0.4);
+}
+
+.nav-tab.solo {
+    border-color: #10B981;
+    background: rgba(16, 185, 129, 0.2);
+}
+
+.nav-tab.solo:hover {
+    background: rgba(16, 185, 129, 0.4);
+    box-shadow: 0 0 15px rgba(16, 185, 129, 0.4);
+}
+
+.nav-tab.nlq {
+    border-color: #8B5CF6;
+    background: rgba(139, 92, 246, 0.2);
+}
+
+.nav-tab.nlq:hover {
+    background: rgba(139, 92, 246, 0.4);
+    box-shadow: 0 0 15px rgba(139, 92, 246, 0.4);
+}
+
+.nav-tab.active {
+    background: linear-gradient(135deg, #F59E0B 0%, #8B5CF6 100%);
+    box-shadow: 0 0 20px rgba(245, 158, 11, 0.6);
+}
+
+.nav-icons {
+    display: flex;
+    gap: 15px;
+}
+
+/* v1.5: Main Content Offset */
+.main-content {
+    margin-top: 90px;
+    padding: 20px;
+}
+
+/* v1.5: Vibrant Background Gradient */
+body {
+    background: linear-gradient(135deg, #F0F9FF 0%, #FEF3C7 100%);
+}
+
+/* v1.5: Hero Section with Vibrant Colors */
+.hero-section {
+    background: linear-gradient(135deg, #4F46E5 0%, #8B5CF6 50%, #F59E0B 100%);
+    padding: 40px;
+    border-radius: 16px;
+    color: white;
+    text-align: center;
+    margin-bottom: 30px;
+    box-shadow: 0 10px 30px rgba(79, 70, 229, 0.3);
+    animation: fadeIn 0.8s ease-in;
+}
+
+.hero-section h1 {
+    font-size: 2.5em;
+    margin: 0;
+    font-weight: 700;
+    letter-spacing: -1px;
+}
+
+.hero-section p {
+    font-size: 1.1em;
+    margin: 10px 0 0 0;
+    opacity: 0.95;
+}
+
+/* v1.5: Mode Cards with Vibrant Accents */
+.mode-card {
+    background: white;
+    border-radius: 12px;
+    padding: 20px;
+    margin: 10px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    transition: all 0.3s ease;
+    cursor: pointer;
+    border-left: 5px solid transparent;
+}
+
+.mode-card.hybrid {
+    border-left-color: #F59E0B;
+}
+
+.mode-card.solo {
+    border-left-color: #10B981;
+}
+
+.mode-card.nlq {
+    border-left-color: #8B5CF6;
+}
+
+.mode-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 24px rgba(0, 0, 0, 0.15);
+}
+
+.mode-card h3 {
+    color: #4F46E5;
+    margin-top: 0;
+    font-size: 1.3em;
+}
+
+.mode-card p {
+    color: #666;
+    font-size: 0.95em;
+    margin: 10px 0 0 0;
+}
+
+/* v1.5: Vibrant Metric Badges */
+.metric-badge {
+    display: inline-block;
+    background: linear-gradient(135deg, #F59E0B 0%, #8B5CF6 100%);
+    color: white;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 0.9em;
+    font-weight: 600;
+    margin: 4px;
+}
+
+.metric-badge.success {
+    background: linear-gradient(135deg, #10B981 0%, #059669 100%);
+}
+
+.metric-badge.danger {
+    background: linear-gradient(135deg, #EF4444 0%, #DC2626 100%);
+}
+
+/* v1.5: Branch Cards with Color Accents */
+.branch-card {
+    background: white;
+    border-left: 5px solid #4F46E5;
+    border-radius: 8px;
+    padding: 16px;
+    margin: 12px 0;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+    transition: all 0.3s ease;
+    animation: slideIn 0.5s ease-out;
+}
+
+.branch-card:hover {
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.12);
+    transform: translateX(4px);
+}
+
+.branch-card.positive {
+    border-left-color: #10B981;
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.05) 0%, rgba(16, 185, 129, 0.02) 100%);
+}
+
+.branch-card.negative {
+    border-left-color: #EF4444;
+    background: linear-gradient(135deg, rgba(239, 68, 68, 0.05) 0%, rgba(239, 68, 68, 0.02) 100%);
+}
+
+.branch-card.opportunity {
+    border-left-color: #F59E0B;
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.05) 0%, rgba(245, 158, 11, 0.02) 100%);
+}
+
+/* v1.5: Status Badge */
+.status-badge {
+    display: inline-block;
+    background: linear-gradient(135deg, #10B981 0%, #059669 100%);
+    color: white;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-weight: 600;
+    font-size: 0.9em;
+}
+
+/* v1.5: Animations */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
     }
-    .stTabs [data-baseweb="tab-list"] button [data-testid="stMarkdownContainer"] p {
-        font-size: 1.1rem;
-        font-weight: 600;
+    to {
+        opacity: 1;
+        transform: translateY(0);
     }
-    .metric-card {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        padding: 20px;
-        border-radius: 10px;
-        margin: 10px 0;
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateX(-20px);
     }
-    .success-card {
-        background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
-        color: white;
-        padding: 20px;
-        border-radius: 10px;
-        margin: 10px 0;
+    to {
+        opacity: 1;
+        transform: translateX(0);
     }
-    .warning-card {
-        background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-        color: white;
-        padding: 20px;
-        border-radius: 10px;
-        margin: 10px 0;
+}
+
+@keyframes colorPulse {
+    0%, 100% {
+        box-shadow: 0 0 10px rgba(245, 158, 11, 0.4);
     }
-    .query-bubble {
-        background-color: #667eea;
-        color: white;
-        padding: 12px 16px;
-        border-radius: 12px;
+    50% {
+        box-shadow: 0 0 20px rgba(245, 158, 11, 0.8);
+    }
+}
+
+/* v1.5: Responsive Mobile */
+@media (max-width: 768px) {
+    .top-nav-bar {
+        height: 60px;
+        padding: 0 10px;
+    }
+    
+    .nav-logo {
+        font-size: 1.4em;
+        margin-right: 20px;
+    }
+    
+    .nav-tabs {
+        gap: 5px;
+    }
+    
+    .nav-tab {
+        padding: 8px 12px;
+        font-size: 0.85em;
+    }
+    
+    .main-content {
+        margin-top: 80px;
+        padding: 10px;
+    }
+    
+    .hero-section h1 {
+        font-size: 1.8em;
+    }
+    
+    .mode-card {
         margin: 8px 0;
-        max-width: 80%;
-        word-wrap: break-word;
     }
-    .response-bubble {
-        background-color: #e8f5e9;
-        color: #1b5e20;
-        padding: 12px 16px;
-        border-radius: 12px;
-        margin: 8px 0;
-        border-left: 4px solid #4caf50;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-    }
-    
-    .tooltip-text {
-        color: #666;
-        font-size: 0.85rem;
-        font-style: italic;
-        margin-top: 4px;
-    }
-    
-    .welcome-box {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        padding: 20px;
-        border-radius: 10px;
-        margin-bottom: 20px;
-    }
-    
-    @media (max-width: 768px) {
-        .main {
-            padding: 10px;
-        }
-        .query-bubble {
-            max-width: 90%;
-        }
-    }
-    </style>
-""", unsafe_allow_html=True)
+}
+</style>
+""")
 
 # ==================== UTILITY FUNCTIONS ====================
 
