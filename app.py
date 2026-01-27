@@ -1,7 +1,11 @@
 """
-Narrative Nexus v1.5 - Complete Production App
-Full functionality with clean, vibrant UI design
-Built for SME decision-making and bias detection
+Narrative Nexus v2.0 - AI-Powered Business Advisor
+Features:
+- GPT-powered intelligent analysis
+- Plain language reports (no jargon)
+- Voice input for hands-free queries
+- Echo chamber detection
+- Strategic story generation
 """
 
 import streamlit as st
@@ -13,11 +17,19 @@ from collections import Counter
 from datetime import datetime
 import json
 import re
+import os
+
+# Try to import OpenAI
+try:
+    from openai import OpenAI
+    OPENAI_AVAILABLE = True
+except ImportError:
+    OPENAI_AVAILABLE = False
 
 # ==================== PAGE CONFIG ====================
 
 st.set_page_config(
-    page_title="Narrative Nexus",
+    page_title="Narrative Nexus v2.0",
     page_icon="🕸️",
     layout="wide",
     initial_sidebar_state="collapsed"
@@ -127,12 +139,6 @@ h1 {
     font-size: 1em;
 }
 
-.stTextInput > div > div > input:focus,
-.stTextArea > div > div > textarea:focus {
-    border-color: #F59E0B;
-    box-shadow: 0 0 10px rgba(245, 158, 11, 0.3);
-}
-
 /* Metrics */
 .stMetric {
     background: linear-gradient(135deg, rgba(79, 70, 229, 0.05) 0%, rgba(139, 92, 246, 0.05) 100%);
@@ -142,12 +148,50 @@ h1 {
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 }
 
-/* Expander */
-.streamlit-expanderHeader {
-    background: linear-gradient(135deg, #4F46E5 0%, #8B5CF6 100%);
+/* Plain Language Report Box */
+.plain-report {
+    background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+    border-left: 5px solid #10B981;
+    border-radius: 15px;
+    padding: 25px;
+    margin: 20px 0;
+    font-size: 1.1em;
+    line-height: 1.8;
+}
+
+.plain-report h3 {
+    color: #059669;
+    margin-bottom: 15px;
+}
+
+/* AI Badge */
+.ai-badge {
+    background: linear-gradient(135deg, #8B5CF6 0%, #6366F1 100%);
     color: white;
-    border-radius: 10px;
+    padding: 5px 15px;
+    border-radius: 20px;
+    font-size: 0.85em;
     font-weight: 600;
+    display: inline-block;
+    margin-bottom: 10px;
+}
+
+/* Voice Button */
+.voice-btn {
+    background: linear-gradient(135deg, #EF4444 0%, #DC2626 100%);
+    color: white;
+    padding: 15px 25px;
+    border-radius: 50px;
+    font-size: 1.1em;
+    font-weight: 600;
+    border: none;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.voice-btn:hover {
+    transform: scale(1.05);
+    box-shadow: 0 6px 20px rgba(239, 68, 68, 0.4);
 }
 
 /* Divider */
@@ -163,27 +207,6 @@ hr {
     h1 {
         font-size: 1.8em;
     }
-    
-    .stTabs [data-baseweb="tab-list"] button {
-        padding: 8px 16px;
-        font-size: 0.9em;
-    }
-}
-
-/* Card styling */
-.mode-card {
-    background: white;
-    border-radius: 15px;
-    padding: 25px;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-    border: 2px solid transparent;
-    transition: all 0.3s ease;
-}
-
-.mode-card:hover {
-    border-color: #F59E0B;
-    transform: translateY(-5px);
-    box-shadow: 0 8px 25px rgba(245, 158, 11, 0.2);
 }
 </style>
 """, unsafe_allow_html=True)
@@ -193,7 +216,147 @@ hr {
 if 'mode' not in st.session_state:
     st.session_state.mode = 'dashboard'
 if 'interactions' not in st.session_state:
-    st.session_state.interactions = {'queries': 0, 'uploads': 0, 'stories_generated': 0}
+    st.session_state.interactions = {'queries': 0, 'uploads': 0, 'ai_calls': 0}
+if 'chat_history' not in st.session_state:
+    st.session_state.chat_history = []
+
+# ==================== GPT AI FUNCTIONS ====================
+
+def get_openai_client():
+    """Get OpenAI client if available"""
+    if OPENAI_AVAILABLE:
+        try:
+            return OpenAI()
+        except:
+            return None
+    return None
+
+def ai_analyze_query(query, context=None):
+    """Use GPT to analyze business query and generate insights"""
+    client = get_openai_client()
+    
+    if client:
+        try:
+            system_prompt = """You are a friendly business advisor for small and medium businesses. 
+            Your job is to:
+            1. Understand the business owner's question
+            2. Provide clear, actionable advice in plain English
+            3. Avoid jargon - explain like you're talking to a friend
+            4. Be encouraging but honest
+            5. Give specific, practical recommendations
+            
+            Format your response with:
+            - A brief summary of what you understood
+            - 3-4 key insights (use emojis to make it friendly)
+            - A clear recommendation
+            - One thing they should do TODAY"""
+            
+            user_message = f"Business Question: {query}"
+            if context:
+                user_message += f"\n\nAdditional Context: {context}"
+            
+            response = client.chat.completions.create(
+                model="gpt-4.1-nano",
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_message}
+                ],
+                max_tokens=800,
+                temperature=0.7
+            )
+            
+            st.session_state.interactions['ai_calls'] += 1
+            return response.choices[0].message.content, True
+        except Exception as e:
+            return None, False
+    
+    return None, False
+
+def ai_analyze_documents(text_content, df_summary, echo_info, mismatch_score):
+    """Use GPT to analyze documents and generate plain language report"""
+    client = get_openai_client()
+    
+    if client:
+        try:
+            system_prompt = """You are a friendly business advisor analyzing meeting notes and sales data.
+            Your job is to:
+            1. Explain what you found in PLAIN ENGLISH - no technical jargon
+            2. Point out any biases or blind spots you noticed
+            3. Highlight opportunities they might be missing
+            4. Give specific, actionable advice
+            
+            Write like you're having a coffee chat with the business owner.
+            Use everyday language. Be warm but direct.
+            Use emojis sparingly to make key points stand out."""
+            
+            user_message = f"""I analyzed a business's meeting notes and sales data. Here's what I found:
+
+MEETING NOTES SUMMARY:
+{text_content[:1500]}
+
+DATA SUMMARY:
+{df_summary}
+
+BIAS DETECTION:
+- Echo Chamber Detected: {echo_info['detected']}
+- Most Repeated Word: {echo_info['top_word']} (mentioned {echo_info['count']} times)
+- Text-Data Mismatch Score: {mismatch_score}%
+
+Please write a friendly, plain-language report explaining:
+1. What the team seems to be focused on
+2. What the data actually shows
+3. What opportunity they might be missing
+4. What they should do about it"""
+
+            response = client.chat.completions.create(
+                model="gpt-4.1-nano",
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_message}
+                ],
+                max_tokens=1000,
+                temperature=0.7
+            )
+            
+            st.session_state.interactions['ai_calls'] += 1
+            return response.choices[0].message.content, True
+        except Exception as e:
+            return None, False
+    
+    return None, False
+
+def ai_generate_stories(context, intent):
+    """Use GPT to generate personalized strategic paths"""
+    client = get_openai_client()
+    
+    if client:
+        try:
+            system_prompt = """You are a strategic business advisor. Generate 3 different strategic paths 
+            for the business owner to consider. Each path should be:
+            1. Named with an emoji and clear title
+            2. Described in 2-3 sentences of plain English
+            3. Include a realistic outcome (with numbers if possible)
+            4. Rate the risk level (Low/Medium/High)
+            5. Give one specific action to take
+            
+            Make each path genuinely different - conservative, balanced, and bold options.
+            Write like you're advising a friend, not writing a business report."""
+            
+            response = client.chat.completions.create(
+                model="gpt-4.1-nano",
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": f"Business situation: {context}\nIntent: {intent}"}
+                ],
+                max_tokens=800,
+                temperature=0.8
+            )
+            
+            return response.choices[0].message.content, True
+        except:
+            return None, False
+    
+    return None, False
 
 # ==================== HELPER FUNCTIONS ====================
 
@@ -219,274 +382,212 @@ def validate_csv(file, max_rows=1000):
 def detect_echo_chamber(text):
     """Detect echo chamber patterns in text"""
     if not text:
-        return False, None, []
+        return {'detected': False, 'top_word': None, 'count': 0, 'top_words': []}
     
-    # Clean and tokenize
     words = re.findall(r'\b[a-zA-Z]{4,}\b', text.lower())
-    
-    # Remove common stop words
     stop_words = {'this', 'that', 'with', 'from', 'have', 'been', 'were', 'they', 'their', 
                   'what', 'when', 'where', 'which', 'would', 'could', 'should', 'about',
-                  'into', 'more', 'some', 'than', 'them', 'then', 'there', 'these', 'will'}
+                  'into', 'more', 'some', 'than', 'them', 'then', 'there', 'these', 'will',
+                  'going', 'need', 'want', 'make', 'just', 'also', 'like', 'think'}
     words = [w for w in words if w not in stop_words]
     
     word_freq = Counter(words)
     top_words = word_freq.most_common(10)
     
-    # Echo chamber detection: if top word appears more than 10 times or >5% of text
     if top_words:
         top_word, top_count = top_words[0]
         total_words = len(words)
         frequency_ratio = top_count / total_words if total_words > 0 else 0
         
-        if top_count >= 10 or frequency_ratio > 0.05:
-            return True, top_word, top_words[:5]
+        if top_count >= 8 or frequency_ratio > 0.04:
+            return {
+                'detected': True,
+                'top_word': top_word,
+                'count': top_count,
+                'top_words': top_words[:5]
+            }
     
-    return False, None, top_words[:5]
+    return {'detected': False, 'top_word': None, 'count': 0, 'top_words': top_words[:5]}
 
 def calculate_mismatch(text, df):
     """Calculate text-data mismatch score"""
     if df is None or text is None:
-        return 0
+        return 50
     
     text_lower = text.lower()
+    mentioned = 0
+    ignored = 0
     
-    # Check if text mentions segments/regions in data
-    mentioned_segments = []
-    ignored_segments = []
-    
-    # Get unique values from categorical columns
     for col in df.columns:
         if df[col].dtype == 'object':
-            unique_vals = df[col].unique()
-            for val in unique_vals:
+            for val in df[col].unique():
                 val_str = str(val).lower()
-                if val_str in text_lower:
-                    mentioned_segments.append(val_str)
-                else:
-                    ignored_segments.append(val_str)
+                if len(val_str) > 3:
+                    if val_str in text_lower:
+                        mentioned += 1
+                    else:
+                        ignored += 1
     
-    # Calculate mismatch based on ignored vs mentioned
-    total = len(mentioned_segments) + len(ignored_segments)
+    total = mentioned + ignored
     if total == 0:
-        return 50  # Default mismatch
+        return 50
     
-    mismatch = (len(ignored_segments) / total) * 100
-    return min(100, max(0, mismatch))
+    return min(100, max(0, (ignored / total) * 100))
 
-def analyze_sentiment(text):
-    """Simple sentiment analysis"""
-    positive_words = {'good', 'great', 'excellent', 'amazing', 'boost', 'increase', 
-                      'opportunity', 'growth', 'positive', 'success', 'profit', 'win'}
-    negative_words = {'bad', 'poor', 'terrible', 'drop', 'decline', 'issue', 'problem', 
-                      'loss', 'unhappy', 'fail', 'risk', 'cut', 'reduce'}
+def get_df_summary(df):
+    """Get a text summary of the dataframe"""
+    if df is None:
+        return "No data available"
     
-    words = text.lower().split()
-    pos_count = sum(1 for w in words if w in positive_words)
-    neg_count = sum(1 for w in words if w in negative_words)
+    summary = f"Data has {len(df)} rows and {len(df.columns)} columns.\n"
+    summary += f"Columns: {', '.join(df.columns.tolist())}\n"
     
-    if neg_count > pos_count:
-        return 'negative', neg_count
-    elif pos_count > neg_count:
-        return 'positive', pos_count
-    return 'neutral', 0
+    numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+    if numeric_cols:
+        for col in numeric_cols[:3]:
+            summary += f"{col}: min={df[col].min():.0f}, max={df[col].max():.0f}, avg={df[col].mean():.0f}\n"
+    
+    cat_cols = df.select_dtypes(include=['object']).columns.tolist()
+    if cat_cols:
+        for col in cat_cols[:2]:
+            unique_vals = df[col].unique()[:5]
+            summary += f"{col} values: {', '.join(map(str, unique_vals))}\n"
+    
+    return summary
 
-def parse_nlq_intent(query):
-    """Parse natural language query intent"""
-    query_lower = query.lower()
+def generate_plain_report_fallback(echo_info, mismatch_score, df):
+    """Generate plain language report without AI"""
+    report = ""
     
-    # Intent classification
-    if any(word in query_lower for word in ['bias', 'echo', 'focus', 'ignore', 'miss', 'overlook']):
-        intent = 'bias_check'
-    elif any(word in query_lower for word in ['drop', 'down', 'decline', 'fall', 'issue', 'problem']):
-        intent = 'sales_issue'
-    elif any(word in query_lower for word in ['forecast', 'predict', 'future', 'next', 'expect', 'grow']):
-        intent = 'forecast'
-    else:
-        intent = 'general_advice'
-    
-    # Extract key terms
-    key_terms = [word for word in query_lower.split() 
-                 if len(word) > 4 and word not in {'what', 'when', 'where', 'which', 'their', 'about', 'should', 'could', 'would'}]
-    
-    sentiment, _ = analyze_sentiment(query)
-    
-    return {
-        'intent': intent,
-        'sentiment': sentiment,
-        'key_terms': key_terms[:5],
-        'query': query
-    }
+    if echo_info['detected']:
+        report += f"""
+### 🔍 What I Found
 
-def generate_nlq_insights(query_data):
-    """Generate insights from NLQ query"""
-    intent = query_data['intent']
-    key_terms = ' '.join(query_data['key_terms']) if query_data['key_terms'] else 'your business'
-    
-    insights = []
-    
-    if intent == 'sales_issue':
-        insights = [
-            f"📉 Analysis indicates potential decline in {key_terms}",
-            "🔍 Regional disparities may be contributing to the issue",
-            "💡 Recommendation: Investigate underperforming segments",
-            "📊 Consider diversifying your strategy across regions"
-        ]
-    elif intent == 'forecast':
-        insights = [
-            f"📈 Growth projection for {key_terms} looks promising",
-            "🎯 Current momentum suggests upward trend",
-            "✅ Recommendation: Scale operations to capitalize on growth",
-            "📊 Monitor key metrics weekly for adjustments"
-        ]
-    elif intent == 'bias_check':
-        insights = [
-            f"⚠️ Potential bias detected in {key_terms} strategy",
-            "🔍 Team may be overlooking alternative opportunities",
-            "💡 Recommendation: Diversify focus across all segments",
-            "📊 Data suggests untapped potential in ignored areas"
-        ]
-    else:
-        insights = [
-            f"📊 Analysis of {key_terms} shows mixed performance",
-            "🎯 Opportunity exists for targeted improvements",
-            "💡 Recommendation: Focus on high-impact areas first",
-            "✅ Consider A/B testing different strategies"
-        ]
-    
-    return insights
+**Your team seems really focused on "{echo_info['top_word']}"** - it came up {echo_info['count']} times in your meeting notes! 
 
-def generate_stories(context, df=None, query_data=None):
-    """Generate strategic story branches"""
+When everyone keeps saying the same thing over and over, it might mean you're all on the same page... or it might mean you're missing something important.
+
+"""
     
-    # Dynamic metrics based on data
-    if df is not None and 'Revenue' in df.columns:
-        current_revenue = df['Revenue'].iloc[-1] if len(df) > 0 else 50000
-        avg_revenue = df['Revenue'].mean()
-    else:
-        current_revenue = 50000
-        avg_revenue = 50000
+    if mismatch_score > 50:
+        report += f"""
+### ⚠️ Here's Something Interesting
+
+**There's a {mismatch_score:.0f}% gap between what your team is talking about and what your data shows.**
+
+In plain English: Your discussions might not be matching up with reality. Some parts of your business that are doing well might be getting ignored.
+
+"""
     
-    # Customize based on query intent
-    if query_data and query_data.get('intent') == 'sales_issue':
-        stories = [
-            {
-                'title': '🛑 Path 1: Status Quo (Risky)',
-                'description': 'Continue current approach without addressing the decline.',
-                'outcome': f'Revenue drops 15-20% (${current_revenue * 0.82:,.0f})',
-                'growth': -18,
-                'risk': 85,
-                'recommendation': 'Not recommended - high risk of continued decline',
-                'actions': ['Monitor metrics', 'Hope for improvement', 'No resource change']
-            },
-            {
-                'title': '🔧 Path 2: Quick Fixes (Safe)',
-                'description': 'Implement targeted interventions for immediate stabilization.',
-                'outcome': f'Revenue +5-8% (${current_revenue * 1.06:,.0f})',
-                'growth': 6,
-                'risk': 35,
-                'recommendation': 'Good for short-term stabilization',
-                'actions': ['Optimize pricing', 'Improve customer service', 'Quick marketing push']
-            },
-            {
-                'title': '📊 Path 3: Strategic Pivot (Balanced)',
-                'description': 'Reallocate resources based on data-driven insights.',
-                'outcome': f'Revenue +12-15% (${current_revenue * 1.13:,.0f})',
-                'growth': 13,
-                'risk': 45,
-                'recommendation': 'Recommended - balanced risk/reward',
-                'actions': ['Diversify segments', 'Invest in growth areas', 'Reduce bias']
-            },
-            {
-                'title': '🚀 Path 4: Transformation (Bold)',
-                'description': 'Comprehensive overhaul of strategy and operations.',
-                'outcome': f'Revenue +20-25% (${current_revenue * 1.22:,.0f})',
-                'growth': 22,
-                'risk': 60,
-                'recommendation': 'Best long-term potential, requires commitment',
-                'actions': ['Full strategy review', 'New market entry', 'Technology upgrade']
-            }
-        ]
-    elif query_data and query_data.get('intent') == 'forecast':
-        stories = [
-            {
-                'title': '🐢 Path 1: Conservative Growth',
-                'description': 'Maintain steady pace with minimal risk.',
-                'outcome': f'Revenue +8-10% (${current_revenue * 1.09:,.0f})',
-                'growth': 9,
-                'risk': 20,
-                'recommendation': 'Safe choice for risk-averse approach',
-                'actions': ['Steady investment', 'Maintain current strategy', 'Gradual expansion']
-            },
-            {
-                'title': '⚖️ Path 2: Balanced Expansion',
-                'description': 'Moderate investment increase with calculated risks.',
-                'outcome': f'Revenue +15-18% (${current_revenue * 1.16:,.0f})',
-                'growth': 16,
-                'risk': 40,
-                'recommendation': 'Recommended - optimal risk/reward balance',
-                'actions': ['50% investment increase', 'New channel testing', 'Team expansion']
-            },
-            {
-                'title': '🚀 Path 3: Aggressive Growth',
-                'description': 'Double down on growth opportunities.',
-                'outcome': f'Revenue +25-30% (${current_revenue * 1.27:,.0f})',
-                'growth': 27,
-                'risk': 65,
-                'recommendation': 'For risk-takers with strong conviction',
-                'actions': ['2x investment', 'Rapid hiring', 'Market expansion']
-            }
-        ]
-    else:
-        stories = [
-            {
-                'title': '📈 Path 1: Growth Focus',
-                'description': 'Prioritize expansion and new opportunities.',
-                'outcome': f'Revenue +15-20% (${current_revenue * 1.17:,.0f})',
-                'growth': 17,
-                'risk': 45,
-                'recommendation': 'Recommended for growth-oriented businesses',
-                'actions': ['Invest in marketing', 'Expand product line', 'Enter new markets']
-            },
-            {
-                'title': '🛡️ Path 2: Stability Focus',
-                'description': 'Optimize current operations for steady returns.',
-                'outcome': f'Revenue +5-8% (${current_revenue * 1.06:,.0f})',
-                'growth': 6,
-                'risk': 20,
-                'recommendation': 'Safe choice for uncertain times',
-                'actions': ['Cost optimization', 'Process improvement', 'Customer retention']
-            },
-            {
-                'title': '🚀 Path 3: Innovation Focus',
-                'description': 'Invest in new technologies and approaches.',
-                'outcome': f'Revenue +25-35% (${current_revenue * 1.30:,.0f})',
-                'growth': 30,
-                'risk': 55,
-                'recommendation': 'High potential with higher risk',
-                'actions': ['R&D investment', 'Digital transformation', 'New business models']
-            }
-        ]
+    report += """
+### 💡 My Advice
+
+1. **Look at the numbers** - Sometimes the data tells a different story than our gut feeling
+2. **Ask "what are we NOT talking about?"** - The things we ignore can be opportunities
+3. **Get a second opinion** - Show this data to someone outside your team
+
+### ✅ Do This Today
+
+Pick ONE thing from your data that surprised you and discuss it with your team for 10 minutes.
+"""
     
+    return report
+
+def generate_stories_fallback(context, intent):
+    """Generate strategic paths without AI"""
+    stories = [
+        {
+            'title': '🐢 The Safe Path',
+            'description': 'Keep doing what works, but make small improvements. Low risk, steady progress.',
+            'outcome': 'Expect 5-10% improvement over 6 months',
+            'risk': 'Low',
+            'action': 'Pick your best-performing area and invest 10% more there'
+        },
+        {
+            'title': '⚖️ The Balanced Path',
+            'description': 'Make moderate changes based on what the data shows. Some risk, good potential.',
+            'outcome': 'Expect 15-20% improvement if it works',
+            'risk': 'Medium',
+            'action': 'Test a new approach with 20% of your resources for 30 days'
+        },
+        {
+            'title': '🚀 The Bold Path',
+            'description': 'Make significant changes to capture the opportunity. Higher risk, higher reward.',
+            'outcome': 'Could see 30%+ improvement, but also possible setbacks',
+            'risk': 'High',
+            'action': 'Commit to a major shift and give it 90 days to prove itself'
+        }
+    ]
     return stories
 
-def calculate_nexus_score(echo_detected, mismatch_score, sentiment):
-    """Calculate overall Nexus Advice Score"""
-    base_score = 70
+# ==================== VOICE INPUT ====================
+
+def add_voice_input():
+    """Add voice input capability using browser's speech recognition"""
+    st.markdown("""
+    <div style="background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); 
+                padding: 20px; border-radius: 15px; margin: 20px 0; text-align: center;">
+        <h4 style="color: #92400e; margin-bottom: 10px;">🎤 Voice Input</h4>
+        <p style="color: #78350f; margin-bottom: 15px;">Click the microphone and speak your question!</p>
+        <p style="color: #92400e; font-size: 0.9em;">
+            <strong>Try saying:</strong> "Why are my sales dropping in rural areas?"
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
     
-    # Adjust based on echo chamber
-    if echo_detected:
-        base_score += 15  # More actionable insight
-    
-    # Adjust based on mismatch
-    if mismatch_score > 50:
-        base_score += 10  # Clear opportunity identified
-    
-    # Adjust based on sentiment
-    if sentiment == 'negative':
-        base_score += 5  # Clearer problem to solve
-    
-    return min(100, base_score)
+    # JavaScript for voice recognition
+    voice_js = """
+    <script>
+    function startVoiceRecognition() {
+        if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            const recognition = new SpeechRecognition();
+            recognition.lang = 'en-US';
+            recognition.interimResults = false;
+            
+            recognition.onresult = function(event) {
+                const transcript = event.results[0][0].transcript;
+                // Send to Streamlit
+                const textArea = document.querySelector('textarea');
+                if (textArea) {
+                    textArea.value = transcript;
+                    textArea.dispatchEvent(new Event('input', { bubbles: true }));
+                }
+                document.getElementById('voice-status').innerHTML = '✅ Got it: "' + transcript + '"';
+            };
+            
+            recognition.onerror = function(event) {
+                document.getElementById('voice-status').innerHTML = '❌ Error: ' + event.error;
+            };
+            
+            recognition.onstart = function() {
+                document.getElementById('voice-status').innerHTML = '🎤 Listening...';
+            };
+            
+            recognition.start();
+        } else {
+            document.getElementById('voice-status').innerHTML = '❌ Voice input not supported in this browser. Try Chrome!';
+        }
+    }
+    </script>
+    <div style="text-align: center; margin: 10px 0;">
+        <button onclick="startVoiceRecognition()" style="
+            background: linear-gradient(135deg, #EF4444 0%, #DC2626 100%);
+            color: white;
+            padding: 15px 30px;
+            border-radius: 50px;
+            font-size: 1.1em;
+            font-weight: 600;
+            border: none;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(239, 68, 68, 0.3);
+        ">
+            🎤 Click to Speak
+        </button>
+        <p id="voice-status" style="margin-top: 15px; color: #666;"></p>
+    </div>
+    """
+    st.components.v1.html(voice_js, height=150)
 
 # ==================== DASHBOARD ====================
 
@@ -495,157 +596,189 @@ def show_dashboard():
     col1, col2 = st.columns([3, 1])
     with col1:
         st.title("🕸️ Narrative Nexus")
-        st.markdown("**Detect Biases • Analyze Data • Generate Stories**")
+        st.markdown('<span class="ai-badge">✨ AI-Powered v2.0</span>', unsafe_allow_html=True)
+        st.markdown("**Your AI Business Advisor** • Detect Biases • Get Clear Advice")
     with col2:
         st.markdown("### 🟢 Live")
-        st.caption("v1.5 Production")
+        st.caption("GPT-Enhanced")
     
     st.markdown("---")
+    
+    # What's new banner
+    st.markdown("""
+    <div style="background: linear-gradient(135deg, #ddd6fe 0%, #c4b5fd 100%); 
+                padding: 20px; border-radius: 15px; margin-bottom: 20px;">
+        <h4 style="color: #5b21b6; margin-bottom: 10px;">🆕 What's New in v2.0</h4>
+        <ul style="color: #6d28d9; margin: 0; padding-left: 20px;">
+            <li><strong>🧠 GPT-Powered Analysis</strong> - Real AI that understands your questions</li>
+            <li><strong>📝 Plain Language Reports</strong> - No jargon, just clear advice</li>
+            <li><strong>🎤 Voice Input</strong> - Just speak your question!</li>
+        </ul>
+    </div>
+    """, unsafe_allow_html=True)
     
     # Metrics row
     col1, col2, col3, col4 = st.columns(4)
     with col1:
-        st.metric("Queries Run", st.session_state.interactions['queries'])
+        st.metric("Questions Asked", st.session_state.interactions['queries'])
     with col2:
-        st.metric("Files Uploaded", st.session_state.interactions['uploads'])
+        st.metric("Files Analyzed", st.session_state.interactions['uploads'])
     with col3:
-        st.metric("Stories Generated", st.session_state.interactions['stories_generated'])
+        st.metric("AI Insights", st.session_state.interactions['ai_calls'])
     with col4:
         st.metric("Status", "✅ Active")
     
     st.markdown("---")
     
     st.subheader("📊 Choose Your Analysis Mode")
-    st.markdown("Select a mode below to get started with your business analysis.")
     
     col1, col2, col3 = st.columns(3)
     
     with col1:
         st.markdown("""
         <div style="background: linear-gradient(135deg, #8B5CF6 0%, #6366F1 100%); 
-                    padding: 25px; border-radius: 15px; color: white; text-align: center;">
-            <h3>💬 NLQ Mode</h3>
-            <p>Ask questions in plain English and get instant insights</p>
-            <p><strong>Best for:</strong> Quick queries</p>
+                    padding: 25px; border-radius: 15px; color: white; text-align: center; min-height: 200px;">
+            <h3>💬 Ask AI</h3>
+            <p style="margin: 15px 0;">Ask any business question in plain English (or speak it!)</p>
+            <p><strong>🎤 Voice enabled!</strong></p>
         </div>
         """, unsafe_allow_html=True)
     
     with col2:
         st.markdown("""
         <div style="background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%); 
-                    padding: 25px; border-radius: 15px; color: white; text-align: center;">
-            <h3>📤 Hybrid Mode</h3>
-            <p>Upload meeting notes + data to detect biases</p>
-            <p><strong>Best for:</strong> Deep analysis</p>
+                    padding: 25px; border-radius: 15px; color: white; text-align: center; min-height: 200px;">
+            <h3>📤 Deep Analysis</h3>
+            <p style="margin: 15px 0;">Upload meeting notes + data for bias detection</p>
+            <p><strong>🧠 AI-powered insights!</strong></p>
         </div>
         """, unsafe_allow_html=True)
     
     with col3:
         st.markdown("""
         <div style="background: linear-gradient(135deg, #10B981 0%, #059669 100%); 
-                    padding: 25px; border-radius: 15px; color: white; text-align: center;">
-            <h3>📊 Solo Mode</h3>
-            <p>Analyze CSV data with interactive visualizations</p>
-            <p><strong>Best for:</strong> Data exploration</p>
+                    padding: 25px; border-radius: 15px; color: white; text-align: center; min-height: 200px;">
+            <h3>📊 Data Explorer</h3>
+            <p style="margin: 15px 0;">Upload CSV data for interactive analysis</p>
+            <p><strong>📈 Visual insights!</strong></p>
         </div>
         """, unsafe_allow_html=True)
+
+# ==================== ASK AI MODE ====================
+
+def show_nlq_mode():
+    """AI-Powered Natural Language Query Mode"""
+    st.title("💬 Ask Your AI Advisor")
+    st.markdown('<span class="ai-badge">🧠 GPT-Powered</span>', unsafe_allow_html=True)
+    st.markdown("Ask any business question and get clear, actionable advice.")
     
     st.markdown("---")
     
-    st.info("👆 **Click the mode buttons above** to start your analysis. Each mode offers unique insights for your business decisions.")
-
-# ==================== NLQ MODE ====================
-
-def show_nlq_mode():
-    """Natural Language Query Mode"""
-    st.title("💬 Natural Language Query")
-    st.markdown("Ask your business question in plain English and get instant insights.")
+    # Voice input section
+    add_voice_input()
     
     st.markdown("---")
     
     # Example queries
-    with st.expander("💡 Example Queries (click to expand)"):
+    with st.expander("💡 Example Questions (click to expand)"):
         st.markdown("""
-        - "Sales dropping in rural areas—how can I fix it?"
-        - "Team focused on premium but budget growing faster—what's happening?"
-        - "What growth can I expect next quarter?"
-        - "Are we ignoring any market segments?"
+        - "Sales are dropping in rural areas - what should I do?"
+        - "My team keeps talking about premium customers but budget is growing faster - what's going on?"
+        - "How can I grow my business next quarter?"
+        - "Are we missing any opportunities?"
+        - "What should I focus on this month?"
         """)
     
     query = st.text_area(
-        "What's your business question?", 
+        "What's on your mind?", 
         height=120, 
-        placeholder="e.g., Sales dropping in rural areas—how can I fix it?"
+        placeholder="Type your question here, or use the voice button above to speak it..."
     )
     
-    if st.button("🔍 Analyze Query", use_container_width=True):
+    if st.button("🔍 Get AI Advice", use_container_width=True):
         if query and len(query) > 10:
             st.session_state.interactions['queries'] += 1
             
-            with st.spinner("🧠 Analyzing your question..."):
-                # Parse query
-                query_data = parse_nlq_intent(query)
+            with st.spinner("🧠 Your AI advisor is thinking..."):
+                # Try AI analysis first
+                ai_response, ai_success = ai_analyze_query(query)
                 
-                # Generate insights
-                insights = generate_nlq_insights(query_data)
+                if ai_success and ai_response:
+                    st.success("✅ Here's what I found!")
+                    
+                    # Display AI response in a nice box
+                    st.markdown(f"""
+                    <div class="plain-report">
+                        <h3>🤖 AI Advisor Says:</h3>
+                        {ai_response.replace(chr(10), '<br>')}
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+                else:
+                    # Fallback to basic analysis
+                    st.info("💡 Here's my analysis based on your question:")
+                    
+                    # Basic intent detection
+                    query_lower = query.lower()
+                    if any(word in query_lower for word in ['drop', 'decline', 'down', 'fall', 'problem']):
+                        st.markdown("""
+                        ### 📉 Sounds Like a Sales Challenge
+                        
+                        Based on your question, here's my advice:
+                        
+                        **1. Don't panic** - Most sales dips are temporary and fixable
+                        
+                        **2. Look at the data** - Which specific area is dropping? When did it start?
+                        
+                        **3. Talk to customers** - Sometimes they'll tell you exactly what's wrong
+                        
+                        **4. Check your competition** - Are they doing something new?
+                        
+                        ### ✅ Do This Today
+                        Pull up your sales data from the last 3 months and find the EXACT week things changed.
+                        """)
+                    else:
+                        st.markdown("""
+                        ### 💡 Here's My Take
+                        
+                        Great question! Here are some thoughts:
+                        
+                        **1. Start with data** - What do your numbers actually say?
+                        
+                        **2. Talk to your team** - They often see things you don't
+                        
+                        **3. Test small** - Try new ideas with 10% of your resources first
+                        
+                        ### ✅ Do This Today
+                        Write down the ONE metric that matters most to your business right now.
+                        """)
                 
-                # Generate stories
-                stories = generate_stories(query, query_data=query_data)
-                st.session_state.interactions['stories_generated'] += len(stories)
-                
-                st.success("✅ Analysis Complete!")
-                
-                # Show intent and sentiment
-                col1, col2, col3 = st.columns(3)
-                with col1:
-                    intent_labels = {
-                        'sales_issue': '📉 Sales Issue',
-                        'forecast': '📈 Forecast',
-                        'bias_check': '⚠️ Bias Check',
-                        'general_advice': '💡 General Advice'
-                    }
-                    st.metric("Detected Intent", intent_labels.get(query_data['intent'], 'General'))
-                with col2:
-                    st.metric("Sentiment", query_data['sentiment'].title())
-                with col3:
-                    st.metric("Confidence", "85%")
-                
+                # Generate strategic paths
                 st.markdown("---")
+                st.subheader("🎯 Your Options")
                 
-                # Show insights
-                st.subheader("📈 Key Insights")
-                for insight in insights:
-                    st.write(insight)
+                ai_stories, stories_success = ai_generate_stories(query, "general")
                 
-                st.markdown("---")
-                
-                # Show strategic paths
-                st.subheader("🎯 Strategic Paths")
-                for story in stories:
-                    with st.expander(f"{story['title']}"):
-                        st.write(f"**Description:** {story['description']}")
-                        st.write(f"**Potential Outcome:** {story['outcome']}")
-                        
-                        col1, col2 = st.columns(2)
-                        with col1:
-                            st.metric("Growth Potential", f"{story['growth']}%")
-                        with col2:
-                            st.metric("Risk Level", f"{story['risk']}%")
-                        
-                        st.write(f"**Recommendation:** {story['recommendation']}")
-                        
-                        st.write("**Key Actions:**")
-                        for action in story['actions']:
-                            st.write(f"  • {action}")
+                if stories_success and ai_stories:
+                    st.markdown(ai_stories)
+                else:
+                    stories = generate_stories_fallback(query, "general")
+                    for story in stories:
+                        with st.expander(f"{story['title']}"):
+                            st.write(f"**What it means:** {story['description']}")
+                            st.write(f"**Expected outcome:** {story['outcome']}")
+                            st.write(f"**Risk level:** {story['risk']}")
+                            st.write(f"**👉 Action:** {story['action']}")
         else:
             st.warning("⚠️ Please ask a more specific question (at least 10 characters)")
 
 # ==================== HYBRID MODE ====================
 
 def show_hybrid_mode():
-    """Hybrid Mode - Text + CSV Analysis"""
-    st.title("📤 Hybrid Analysis")
-    st.markdown("Upload meeting notes + sales data to detect biases and generate insights.")
+    """Deep Analysis Mode - Text + CSV"""
+    st.title("📤 Deep Analysis")
+    st.markdown('<span class="ai-badge">🧠 AI-Powered Bias Detection</span>', unsafe_allow_html=True)
+    st.markdown("Upload your meeting notes and data to uncover hidden biases and opportunities.")
     
     st.markdown("---")
     
@@ -655,8 +788,8 @@ def show_hybrid_mode():
     df = None
     
     with col1:
-        st.subheader("📝 Meeting Notes")
-        st.caption("Upload a TXT file with meeting notes, discussions, or decisions")
+        st.subheader("📝 Meeting Notes / Discussions")
+        st.caption("Upload notes from meetings, emails, or team discussions")
         text_file = st.file_uploader("Upload TXT file", type=['txt'], key='txt_hybrid')
         
         if text_file:
@@ -664,92 +797,92 @@ def show_hybrid_mode():
             text_content = validate_text(text_content)
             if text_content:
                 st.success(f"✅ Loaded {len(text_content):,} characters")
-                with st.expander("Preview text"):
+                with st.expander("Preview"):
                     st.text(text_content[:500] + "..." if len(text_content) > 500 else text_content)
-            else:
-                st.error("❌ Text too short or invalid")
     
     with col2:
-        st.subheader("📊 Sales Data")
-        st.caption("Upload a CSV file with sales, revenue, or performance data")
+        st.subheader("📊 Business Data")
+        st.caption("Upload sales, revenue, or performance data")
         csv_file = st.file_uploader("Upload CSV file", type=['csv'], key='csv_hybrid')
         
         if csv_file:
             df = validate_csv(csv_file)
             if df is not None:
-                st.success(f"✅ Loaded {len(df):,} rows, {len(df.columns)} columns")
-                with st.expander("Preview data"):
+                st.success(f"✅ Loaded {len(df):,} rows")
+                with st.expander("Preview"):
                     st.dataframe(df.head(5), use_container_width=True)
-            else:
-                st.error("❌ Invalid CSV format")
     
     st.markdown("---")
     
-    if st.button("🔍 Analyze", use_container_width=True):
+    if st.button("🔍 Analyze for Biases", use_container_width=True):
         if text_content and df is not None:
             st.session_state.interactions['uploads'] += 1
             
-            with st.spinner("🧠 Analyzing text and data..."):
+            with st.spinner("🧠 AI is analyzing your documents..."):
                 # Detect echo chamber
-                is_echo, top_word, top_words = detect_echo_chamber(text_content)
+                echo_info = detect_echo_chamber(text_content)
                 
                 # Calculate mismatch
                 mismatch = calculate_mismatch(text_content, df)
                 
-                # Analyze sentiment
-                sentiment, _ = analyze_sentiment(text_content)
-                
-                # Calculate Nexus score
-                nexus_score = calculate_nexus_score(is_echo, mismatch, sentiment)
-                
-                # Generate stories
-                query_data = {'intent': 'bias_check' if is_echo else 'general_advice', 'sentiment': sentiment}
-                stories = generate_stories(text_content, df, query_data)
-                st.session_state.interactions['stories_generated'] += len(stories)
+                # Get data summary
+                df_summary = get_df_summary(df)
                 
                 st.success("✅ Analysis Complete!")
                 
                 # Key metrics
-                st.subheader("📊 Analysis Results")
-                col1, col2, col3, col4 = st.columns(4)
+                st.subheader("📊 Quick Summary")
+                col1, col2, col3 = st.columns(3)
                 
                 with col1:
-                    echo_status = "🔴 Yes" if is_echo else "🟢 No"
+                    echo_status = "🔴 Yes - Potential groupthink!" if echo_info['detected'] else "🟢 No echo chamber"
                     st.metric("Echo Chamber", echo_status)
                 
                 with col2:
-                    st.metric("Top Word", top_word if top_word else "N/A")
+                    if echo_info['top_word']:
+                        st.metric("Most Repeated", f'"{echo_info["top_word"]}" ({echo_info["count"]}x)')
+                    else:
+                        st.metric("Most Repeated", "N/A")
                 
                 with col3:
-                    mismatch_color = "🔴" if mismatch > 60 else "🟡" if mismatch > 40 else "🟢"
-                    st.metric("Text-Data Mismatch", f"{mismatch_color} {mismatch:.0f}%")
-                
-                with col4:
-                    st.metric("Nexus Score", f"{nexus_score}/100")
+                    mismatch_label = "🔴 High" if mismatch > 60 else "🟡 Medium" if mismatch > 40 else "🟢 Low"
+                    st.metric("Talk vs Data Gap", f"{mismatch_label} ({mismatch:.0f}%)")
                 
                 st.markdown("---")
                 
-                # Echo chamber details
-                if is_echo:
-                    st.warning(f"⚠️ **Echo Chamber Detected!** The word '{top_word}' appears frequently, suggesting potential groupthink.")
-                    st.write("**Most frequent terms:**")
-                    for word, count in top_words:
-                        st.write(f"  • {word}: {count} times")
+                # Plain Language Report
+                st.subheader("📝 Your Report (Plain English)")
                 
-                # Mismatch analysis
-                if mismatch > 50:
-                    st.warning(f"⚠️ **High Mismatch ({mismatch:.0f}%)** - The text discussion doesn't align well with the data. Some segments may be overlooked.")
+                ai_report, ai_success = ai_analyze_documents(
+                    text_content[:2000], 
+                    df_summary, 
+                    echo_info, 
+                    mismatch
+                )
+                
+                if ai_success and ai_report:
+                    st.markdown(f"""
+                    <div class="plain-report">
+                        {ai_report.replace(chr(10), '<br>')}
+                    </div>
+                    """, unsafe_allow_html=True)
+                else:
+                    # Fallback report
+                    report = generate_plain_report_fallback(echo_info, mismatch, df)
+                    st.markdown(f"""
+                    <div class="plain-report">
+                        {report}
+                    </div>
+                    """, unsafe_allow_html=True)
                 
                 st.markdown("---")
                 
                 # Data visualization
-                st.subheader("📈 Data Overview")
-                st.dataframe(df.head(10), use_container_width=True)
+                st.subheader("📈 Your Data at a Glance")
                 
-                # Numeric analysis
                 numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
-                if numeric_cols and len(numeric_cols) > 0:
-                    col = st.selectbox("Select column to visualize", numeric_cols)
+                if numeric_cols:
+                    col = st.selectbox("Select metric to visualize", numeric_cols)
                     
                     fig = go.Figure()
                     fig.add_trace(go.Histogram(x=df[col], nbinsx=30, marker_color='#4F46E5'))
@@ -765,28 +898,24 @@ def show_hybrid_mode():
                 st.markdown("---")
                 
                 # Strategic paths
-                st.subheader("🎯 Strategic Paths")
+                st.subheader("🎯 What You Can Do")
+                
+                stories = generate_stories_fallback(text_content, "bias_check")
                 for story in stories:
                     with st.expander(f"{story['title']}"):
-                        st.write(f"**Description:** {story['description']}")
-                        st.write(f"**Potential Outcome:** {story['outcome']}")
-                        
-                        col1, col2 = st.columns(2)
-                        with col1:
-                            st.metric("Growth Potential", f"{story['growth']}%")
-                        with col2:
-                            st.metric("Risk Level", f"{story['risk']}%")
-                        
-                        st.write(f"**Recommendation:** {story['recommendation']}")
+                        st.write(f"**What it means:** {story['description']}")
+                        st.write(f"**Expected outcome:** {story['outcome']}")
+                        st.write(f"**Risk level:** {story['risk']}")
+                        st.write(f"**👉 Action:** {story['action']}")
         else:
-            st.warning("⚠️ Please upload both a TXT file and a CSV file to proceed.")
+            st.warning("⚠️ Please upload both a TXT file and a CSV file")
 
 # ==================== SOLO MODE ====================
 
 def show_solo_mode():
-    """Solo Mode - CSV Only Analysis"""
-    st.title("📊 Solo Analysis")
-    st.markdown("Upload CSV data for interactive analysis and visualization.")
+    """Data Explorer Mode - CSV Only"""
+    st.title("📊 Data Explorer")
+    st.markdown("Upload your data and explore it with interactive visualizations.")
     
     st.markdown("---")
     
@@ -801,38 +930,35 @@ def show_solo_mode():
             
             st.markdown("---")
             
-            # Data preview
-            st.subheader("📈 Data Preview")
-            st.dataframe(df.head(10), use_container_width=True)
-            
-            st.markdown("---")
-            
-            # Statistics
-            st.subheader("📊 Data Statistics")
+            # Quick stats
+            st.subheader("📈 Quick Stats")
             col1, col2, col3, col4 = st.columns(4)
             with col1:
-                st.metric("Total Rows", f"{len(df):,}")
+                st.metric("Rows", f"{len(df):,}")
             with col2:
-                st.metric("Total Columns", len(df.columns))
+                st.metric("Columns", len(df.columns))
             with col3:
-                st.metric("Memory Usage", f"{df.memory_usage().sum() / 1024:.1f} KB")
-            with col4:
                 missing = df.isnull().sum().sum()
                 st.metric("Missing Values", f"{missing:,}")
+            with col4:
+                st.metric("Memory", f"{df.memory_usage().sum() / 1024:.1f} KB")
             
             st.markdown("---")
+            
+            # Data preview
+            st.subheader("👀 Data Preview")
+            st.dataframe(df.head(10), use_container_width=True)
             
             # Numeric analysis
             numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
             
             if numeric_cols:
+                st.markdown("---")
                 st.subheader("📊 Numeric Analysis")
                 st.dataframe(df[numeric_cols].describe(), use_container_width=True)
                 
                 st.markdown("---")
-                
-                # Visualization
-                st.subheader("📈 Visualization")
+                st.subheader("📈 Visualize Your Data")
                 
                 col1, col2 = st.columns(2)
                 with col1:
@@ -844,13 +970,10 @@ def show_solo_mode():
                 
                 if chart_type == "Histogram":
                     fig.add_trace(go.Histogram(x=df[selected_col], nbinsx=30, marker_color='#4F46E5'))
-                    fig.update_layout(xaxis_title=selected_col, yaxis_title="Frequency")
                 elif chart_type == "Box Plot":
                     fig.add_trace(go.Box(y=df[selected_col], marker_color='#4F46E5', name=selected_col))
-                    fig.update_layout(yaxis_title=selected_col)
-                else:  # Line Chart
+                else:
                     fig.add_trace(go.Scatter(y=df[selected_col], mode='lines', line=dict(color='#4F46E5')))
-                    fig.update_layout(xaxis_title="Index", yaxis_title=selected_col)
                 
                 fig.update_layout(
                     title=f"{chart_type} of {selected_col}",
@@ -859,10 +982,10 @@ def show_solo_mode():
                 )
                 st.plotly_chart(fig, use_container_width=True)
                 
-                # Correlation matrix
+                # Correlation
                 if len(numeric_cols) > 1:
                     st.markdown("---")
-                    st.subheader("🔗 Correlation Matrix")
+                    st.subheader("🔗 How Your Metrics Relate")
                     corr = df[numeric_cols].corr()
                     
                     fig = px.imshow(
@@ -878,9 +1001,9 @@ def show_solo_mode():
             cat_cols = df.select_dtypes(include=['object']).columns.tolist()
             if cat_cols:
                 st.markdown("---")
-                st.subheader("📋 Categorical Analysis")
+                st.subheader("📋 Category Breakdown")
                 
-                selected_cat = st.selectbox("Select categorical column", cat_cols)
+                selected_cat = st.selectbox("Select category", cat_cols)
                 value_counts = df[selected_cat].value_counts().head(10)
                 
                 fig = px.bar(
@@ -890,21 +1013,19 @@ def show_solo_mode():
                     color_continuous_scale='Viridis'
                 )
                 fig.update_layout(
-                    title=f"Top 10 values in {selected_cat}",
+                    title=f"Top values in {selected_cat}",
                     xaxis_title=selected_cat,
                     yaxis_title="Count",
                     template="plotly_white",
                     height=400
                 )
                 st.plotly_chart(fig, use_container_width=True)
-        else:
-            st.error("❌ Invalid CSV format. Please check your file and try again.")
     else:
-        st.info("👆 Upload a CSV file to get started with data analysis.")
+        st.info("👆 Upload a CSV file to explore your data")
 
 # ==================== MAIN APP ====================
 
-# Navigation buttons
+# Navigation
 st.markdown("---")
 
 col1, col2, col3, col4 = st.columns(4)
@@ -915,17 +1036,17 @@ with col1:
         st.rerun()
 
 with col2:
-    if st.button("💬 NLQ Mode", use_container_width=True):
+    if st.button("💬 Ask AI", use_container_width=True):
         st.session_state.mode = 'nlq'
         st.rerun()
 
 with col3:
-    if st.button("📤 Hybrid Mode", use_container_width=True):
+    if st.button("📤 Deep Analysis", use_container_width=True):
         st.session_state.mode = 'hybrid'
         st.rerun()
 
 with col4:
-    if st.button("📊 Solo Mode", use_container_width=True):
+    if st.button("📊 Data Explorer", use_container_width=True):
         st.session_state.mode = 'solo'
         st.rerun()
 
@@ -945,8 +1066,8 @@ elif st.session_state.mode == 'solo':
 st.markdown("---")
 st.markdown("""
 <div style="text-align: center; color: #666; padding: 20px;">
-    <p><strong>🕸️ Narrative Nexus v1.5</strong></p>
-    <p>Turn Data into Stories • Detect Biases • Make Better Decisions</p>
-    <p style="font-size: 0.85em; margin-top: 10px;">Built for Hustlers • Production Ready • 99.9% Uptime</p>
+    <p><strong>🕸️ Narrative Nexus v2.0</strong> • AI-Powered Business Advisor</p>
+    <p>Turn Data into Stories • Detect Biases • Get Clear Advice</p>
+    <p style="font-size: 0.85em; margin-top: 10px;">Built with ❤️ for Business Owners</p>
 </div>
 """, unsafe_allow_html=True)
